@@ -105,12 +105,12 @@
     // Shortcut Buttons
     // =========================
     const btnShortcuts = [
-      { key: 'a', label: 'Left', x: 70, y: 80, w: 35, h: 35 },
-      { key: 'd', label: 'Right', x: 120, y: 80, w: 35, h: 35 },
-      { key: ' ', label: 'Jump', x: 170, y: 80, w: 35, h: 35 },
-      { key: 'k', label: 'Kick', x: canvas.width - 210, y: 80, w: 35, h: 35 },
-      { key: 'i', label: 'Punch', x: canvas.width - 160, y: 80, w: 35, h: 35 },
-      { key: 'j', label: 'Skill', x: canvas.width - 110, y: 80, w: 35, h: 35 },
+      { key: 'a', label: 'Left', x: 70, y: 70, w: 50, h: 50 },
+      { key: 'd', label: 'Right', x: 125, y: 70, w: 50, h: 50 },
+      { key: ' ', label: 'Jump', x: 180, y: 70, w: 50, h: 50 },
+      { key: 'k', label: 'Kick', x: canvas.width - 220, y: 70, w: 50, h: 50 },
+      { key: 'i', label: 'Punch', x: canvas.width - 165, y: 70, w: 50, h: 50 },
+      { key: 'j', label: 'Skill', x: canvas.width - 110, y: 70, w: 50, h: 50 },
     ];
 
 
@@ -207,7 +207,7 @@
         ctx.stroke();
 
         ctx.fillStyle = "red";
-        ctx.font = "bold 9px Arial";
+        ctx.font = "bold 11px Arial";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(btn.label, btn.x + btn.w / 2, btn.y + btn.h / 2);
