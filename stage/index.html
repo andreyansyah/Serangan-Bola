@@ -59,25 +59,7 @@
     const fullscreenBtn = document.getElementById('fullscreenBtn');
 
     fullscreenBtn.addEventListener('click', () => {
-      const wrapper = document.getElementById('canvasWrapper');
-
-      if (!document.fullscreenElement) {
-        if (wrapper.requestFullscreen) {
-          wrapper.requestFullscreen();
-        } else if (wrapper.webkitRequestFullscreen) { // Safari
-          wrapper.webkitRequestFullscreen();
-        } else if (wrapper.msRequestFullscreen) { // IE11
-          wrapper.msRequestFullscreen();
-        }
-      } else {
-        if (document.exitFullscreen) {
-          document.exitFullscreen();
-        } else if (document.webkitExitFullscreen) { // Safari
-          document.webkitExitFullscreen();
-        } else if (document.msExitFullscreen) { // IE11
-          document.msExitFullscreen();
-        }
-      }
+      canvas.requestFullscreen?.();
     });
   </script>
 
