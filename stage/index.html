@@ -102,102 +102,120 @@
     });
 
     const btnShortcuts = [
-    { key: 'a', label: 'Left', x: 70, y: 95, w: 80, h: 50 },
-    { key: 'd', label: 'Right', x: 170, y: 95, w: 80, h: 50 },
-    { key: ' ', label: 'Jump', x: canvas.width - 165, y: 40, w: 50, h: 50 },
-    { key: 'k', label: 'Kick', x: canvas.width - 220, y: 95, w: 50, h: 50 },
-    { key: 'i', label: 'Punch', x: canvas.width - 165, y: 150, w: 50, h: 50 },
-    { key: 'j', label: 'Skill', x: canvas.width - 110, y: 95, w: 50, h: 50 },
-  ];
+      { key: 'a', label: 'Left', x: 70, y: 95, w: 80, h: 50 },
+      { key: 'd', label: 'Right', x: 170, y: 95, w: 80, h: 50 },
+      { key: ' ', label: 'Jump', x: canvas.width - 165, y: 40, w: 50, h: 50 },
+      { key: 'k', label: 'Kick', x: canvas.width - 220, y: 95, w: 50, h: 50 },
+      { key: 'i', label: 'Punch', x: canvas.width - 165, y: 150, w: 50, h: 50 },
+      { key: 'j', label: 'Skill', x: canvas.width - 110, y: 95, w: 50, h: 50 },
+    ];
 
-  const pressedTouchKeys = {};
+    const pressedTouchKeys = {};
 
-  function getCanvasPos(e) {
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    const x = (e.clientX - rect.left) * scaleX;
-    const y = (e.clientY - rect.top) * scaleY;
-    return { x, y };
-  }
+    function getCanvasPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const x = (e.clientX - rect.left) * scaleX;
+      const y = (e.clientY - rect.top) * scaleY;
+      return { x, y };
+    }
 
-  // Mouse / Desktop
-  canvas.addEventListener("mousedown", (e) => {
-    const { x, y } = getCanvasPos(e);
-    for (const btn of btnShortcuts) {
-      if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
-        if (!pressedTouchKeys[btn.key]) {
-          pressedTouchKeys[btn.key] = true;
-          document.dispatchEvent(new KeyboardEvent("keydown", { key: btn.key }));
+    // Mouse / Desktop
+    canvas.addEventListener("mousedown", (e) => {
+      const { x, y } = getCanvasPos(e);
+      for (const btn of btnShortcuts) {
+        if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
+          if (!pressedTouchKeys[btn.key]) {
+            pressedTouchKeys[btn.key] = true;
+            document.dispatchEvent(new KeyboardEvent("keydown", { key: btn.key }));
+          }
         }
       }
-    }
-  });
+    });
 
-  canvas.addEventListener("mouseup", () => {
-    for (const key in pressedTouchKeys) {
-      if (pressedTouchKeys[key]) {
-        document.dispatchEvent(new KeyboardEvent("keyup", { key }));
-        pressedTouchKeys[key] = false;
-      }
-    }
-  });
-
-  // Touch / Mobile
-  canvas.addEventListener("touchstart", (e) => {
-    const touch = e.touches[0];
-    const { x, y } = getCanvasPos(touch);
-    for (const btn of btnShortcuts) {
-      if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
-        if (!pressedTouchKeys[btn.key]) {
-          pressedTouchKeys[btn.key] = true;
-          document.dispatchEvent(new KeyboardEvent("keydown", { key: btn.key }));
+    canvas.addEventListener("mouseup", () => {
+      for (const key in pressedTouchKeys) {
+        if (pressedTouchKeys[key]) {
+          document.dispatchEvent(new KeyboardEvent("keyup", { key }));
+          pressedTouchKeys[key] = false;
         }
       }
-    }
-  }, { passive: true });
+    });
 
-  canvas.addEventListener("touchend", () => {
-    for (const key in pressedTouchKeys) {
-      if (pressedTouchKeys[key]) {
-        document.dispatchEvent(new KeyboardEvent("keyup", { key }));
-        pressedTouchKeys[key] = false;
+    // Touch / Mobile
+    canvas.addEventListener("touchstart", (e) => {
+      for (let i = 0; i < e.touches.length; i++) {
+        const touch = e.touches[i];
+        const { x, y } = getCanvasPos(touch);
+        for (const btn of btnShortcuts) {
+          if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
+            if (!pressedTouchKeys[btn.key]) {
+              pressedTouchKeys[btn.key] = true;
+              document.dispatchEvent(new KeyboardEvent("keydown", { key: btn.key }));
+            }
+          }
+        }
+      }
+    }, { passive: true });
+
+
+    canvas.addEventListener("touchend", (e) => {
+      // Buat set posisi jari yang masih menyentuh
+      const stillTouchingKeys = {};
+
+      for (let i = 0; i < e.touches.length; i++) {
+        const touch = e.touches[i];
+        const { x, y } = getCanvasPos(touch);
+        for (const btn of btnShortcuts) {
+          if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
+            stillTouchingKeys[btn.key] = true;
+          }
+        }
+      }
+
+      // Lepaskan tombol yang tidak disentuh lagi
+      for (const key in pressedTouchKeys) {
+        if (pressedTouchKeys[key] && !stillTouchingKeys[key]) {
+          document.dispatchEvent(new KeyboardEvent("keyup", { key }));
+          pressedTouchKeys[key] = false;
+        }
+      }
+    });
+
+
+    function drawRoundedRect(x, y, width, height, radius) {
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + width - radius, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+      ctx.lineTo(x + width, y + height - radius);
+      ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+      ctx.lineTo(x + radius, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+      ctx.closePath();
+    }
+
+    function drawShortcutButtons() {
+      for (const btn of btnShortcuts) {
+        ctx.fillStyle = pressedTouchKeys[btn.key]
+          ? "rgba(255,165,0,0.8)"
+          : "rgba(255,165,0,0.4)";
+
+        drawRoundedRect(btn.x, btn.y, btn.w, btn.h, 6);
+        ctx.fill();
+        ctx.strokeStyle = "red";
+        ctx.stroke();
+
+        ctx.fillStyle = "red";
+        ctx.font = "bold 11px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(btn.label, btn.x + btn.w / 2, btn.y + btn.h / 2);
       }
     }
-  });
-
-  function drawRoundedRect(x, y, width, height, radius) {
-    ctx.beginPath();
-    ctx.moveTo(x + radius, y);
-    ctx.lineTo(x + width - radius, y);
-    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-    ctx.lineTo(x + width, y + height - radius);
-    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-    ctx.lineTo(x + radius, y + height);
-    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-    ctx.lineTo(x, y + radius);
-    ctx.quadraticCurveTo(x, y, x + radius, y);
-    ctx.closePath();
-  }
-
-  function drawShortcutButtons() {
-    for (const btn of btnShortcuts) {
-      ctx.fillStyle = pressedTouchKeys[btn.key]
-        ? "rgba(255,165,0,0.8)"
-        : "rgba(255,165,0,0.4)";
-
-      drawRoundedRect(btn.x, btn.y, btn.w, btn.h, 6);
-      ctx.fill();
-      ctx.strokeStyle = "red";
-      ctx.stroke();
-
-      ctx.fillStyle = "red";
-      ctx.font = "bold 11px Arial";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(btn.label, btn.x + btn.w / 2, btn.y + btn.h / 2);
-    }
-  }
 
 
 
