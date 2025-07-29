@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Stage: Konoha</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    #canvasWrapper {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #000;
+    }
+
+    canvas {
+      display: block;
+      background: #000;
+      image-rendering: pixelated;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="canvasWrapper">
+    <canvas id="gameCanvas" width="896" height="414"></canvas>
+  </div>
+
+  <audio id="bgm" src="../sounds/konoha.mp3" loop></audio>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    let pick = params.get('hero'); // Gunakan let, agar bisa diubah
+
+    if (!pick) {
+      pick = 'naruto'; // set default jika tidak ada parameter
+    }
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const background = new Image();
+    background.src = './konoha/desa_konoha.png';
+
+    const goalpost = new Image();
+    goalpost.src = '../ui/goalposts_1.png';
+    const goalpost2 = new Image();
+    goalpost2.src = '../ui/goalposts_2.png';
+
+    const ballImg = new Image();
+    ballImg.src = '../ui/bola.png';
+
+    const papanSkorImg = new Image();
+    papanSkorImg.src = '../ui/papan_skor.png';
+
+
+    const idleFrames = [], walkFrames = [], jumpFrames = [], attackFramesCombo1 = [], attackFramesCombo2 = [], kickFrames = [];
+
+    for (let i = 1; i <= 4; i++) idleFrames.push(loadImg(`../hero/${pick}/aba_aba/aba_${i}.png`));
+    for (let i = 1; i <= 6; i++) walkFrames.push(loadImg(`../hero/${pick}/jalan/jalan_${i}.png`));
+    for (let i = 1; i <= 3; i++) jumpFrames.push(loadImg(`../hero/${pick}/lompat/lompat_${i}.png`));
+    for (let i = 1; i <= 3; i++) attackFramesCombo1.push(loadImg(`../hero/${pick}/pukul/pukul_${i}.png`));
+    for (let i = 4; i <= 6; i++) attackFramesCombo2.push(loadImg(`../hero/${pick}/pukul/pukul_${i}.png`));
+    for (let i = 1; i <= 4; i++) kickFrames.push(loadImg(`../hero/${pick}/tendang/tendang_${i}.png`));
+    const heroDeadImg = loadImg(`../hero/${pick}/mati/mati.png`);
+
+    function loadImg(src) {
+      const img = new Image();
+      img.src = src;
+      return img;
+    }
+
+    const hero = {
+      x: 100, y: 300, width: 75, height: 75,
+      speed: 2.5, direction: 'right',
+      isMoving: false, isJumping: false, isAttacking: false,
+      velocityY: 0, gravity: 0.5, groundY: 300,
+      frameIndex: 0, frameDelay: 6, frameCounter: 0,
+      attackCombo: 0, attackFrames: [],
+      lockMove: false,
+      isKicking: false,
+      hasKickedBall: false,
+      hp: 500,
+      isStunned: false,
+      stunTimer: 0,
+    };
+
+    const ball = {
+      x: canvas.width / 2 - 10,
+      y: 0,
+      radius: 10,
+      vx: 0,
+      vy: 0,
+      gravity: 0.4,
+      bounce: -0.7, //default -0.7
+      rotation: 0 // NEW
+    };
+
+
+    const goalpostWidth = 60;
+    const goalpostHeight = 100;
+    const goalpost2Width = 25;
+    const goalpost2Height = 100;
+
+    let skillJCooldown = false;
+    let isUsingSkill = false;
+    let scoreLeft = 0;
+    let scoreRight = 0;
+
+
+    const keys = {};
+    document.addEventListener("keydown", e => {
+      const key = e.key.toLowerCase();
+      keys[key] = true;
+
+      if (key === 'i' && !hero.isAttacking && !hero.isJumping) {
+        hero.attackCombo = (hero.attackCombo + 1) % 2;
+        hero.attackFrames = hero.attackCombo === 0 ? attackFramesCombo1 : attackFramesCombo2;
+        hero.isAttacking = true;
+        hero.frameIndex = 0;
+        hero.frameCounter = 0;
+      }
+
+      if (key === 'k' && !hero.isAttacking && !hero.isJumping) {
+        hero.attackFrames = kickFrames;
+        hero.isAttacking = true;
+        hero.isKicking = true;
+        hero.hasKickedBall = false; // ← tambahkan ini
+        hero.frameIndex = 0;
+        hero.frameCounter = 0;
+      }
+
+
+
+      if (key === 'j' && !hero.isJumping && !hero.isAttacking && !skillJCooldown) {
+        hero.isAttacking = true;
+        skillJCooldown = true;
+
+        executeSkill1(hero, ctx, () => {
+          hero.isAttacking = false;
+          hero.attackFrames = [];
+          hero.frameIndex = 0;
+        });
+
+        setTimeout(() => {
+          skillJCooldown = false;
+        }, 3000);
+      }
+    });
+
+    document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+
+    function drawHero() {
+      let frame;
+
+      if (hero.isStunned) {
+        frame = heroDeadImg;
+      } else if (hero.isAttacking && hero.attackFrames.length > 0) {
+        frame = hero.attackFrames[hero.frameIndex % hero.attackFrames.length];
+      } else if (hero.isJumping) {
+        frame = jumpFrames[hero.frameIndex % jumpFrames.length];
+      } else if (hero.isMoving) {
+        frame = walkFrames[hero.frameIndex % walkFrames.length];
+      } else {
+        frame = idleFrames[hero.frameIndex % idleFrames.length];
+      }
+
+      if (hero.direction === 'left') {
+        ctx.save();
+        ctx.scale(-1, 1);
+        ctx.drawImage(frame, -hero.x - hero.width, hero.y, hero.width, hero.height);
+        ctx.restore();
+      } else {
+        ctx.drawImage(frame, hero.x, hero.y, hero.width, hero.height);
+      }
+
+      // HP Bar
+      drawHPBar(hero.x + 15, hero.y, hero.hp, "KAMU");
+
+      // Frame update
+      hero.frameCounter++;
+      if (hero.frameCounter >= hero.frameDelay && !hero.isStunned) {
+        hero.frameCounter = 0;
+        let frames = hero.isAttacking && hero.attackFrames.length > 0 ? hero.attackFrames.length :
+          hero.isJumping ? jumpFrames.length :
+            hero.isMoving ? walkFrames.length : idleFrames.length;
+
+        hero.frameIndex++;
+        if (hero.isAttacking && hero.frameIndex >= frames) {
+          hero.isAttacking = false;
+          hero.isKicking = false;
+          hero.hasKickedBall = false;
+          hero.frameIndex = 0;
+        } else {
+          hero.frameIndex %= frames;
+        }
+      }
+    }
+
+
+    function updateHero() {
+      if (hero.isStunned) {
+        hero.stunTimer--;
+        if (hero.stunTimer <= 0) {
+          hero.isStunned = false;
+          hero.hp = 500; // reset HP atau sesuai strategi
+        }
+        return;
+      }
+
+      // Cek apakah enemy tersedia sebelum melakukan deteksi pukulan
+      if (typeof enemy !== 'undefined') {
+        const isHeroPunching =
+          hero.isAttacking &&
+          (hero.attackFrames === attackFramesCombo1 || hero.attackFrames === attackFramesCombo2) &&
+          hero.frameIndex >= 1 &&
+          hero.frameIndex <= 2 &&
+          !enemy.justHit;
+
+        const overlapEnemy =
+          enemy.x < hero.x + hero.width &&
+          enemy.x + enemy.width > hero.x &&
+          enemy.y < hero.y + hero.height &&
+          enemy.y + enemy.height > hero.y;
+
+        if (isHeroPunching && overlapEnemy && !enemy.isStunned) {
+          enemy.hp -= 50;
+          enemy.justHit = true;
+
+          if (enemy.hp <= 0 && !enemy.isStunned) {
+            enemy.isStunned = true;
+            enemy.stunTimer = 300; // 5 detik
+            console.log("Enemy stun!");
+          }
+
+          setTimeout(() => enemy.justHit = false, 500); // supaya gak kena spam hit
+        }
+      }
+
+      // Sisanya tetap
+      if (hero.isAttacking && hero.attackFrames.length > 0) return;
+
+      hero.isMoving = false;
+
+      if (!hero.lockMove) {
+        if (keys['d']) {
+          hero.x += hero.speed;
+          hero.direction = 'right';
+          hero.isMoving = true;
+        } else if (keys['a']) {
+          hero.x -= hero.speed;
+          hero.direction = 'left';
+          hero.isMoving = true;
+        }
+
+        if (keys[' '] && !hero.isJumping) {
+          hero.velocityY = -7;
+          hero.isJumping = true;
+          hero.frameIndex = 0;
+        }
+      }
+
+      if (hero.isJumping) {
+        hero.y += hero.velocityY;
+        hero.velocityY += hero.gravity;
+        if (hero.y >= hero.groundY) {
+          hero.y = hero.groundY;
+          hero.isJumping = false;
+          hero.velocityY = 0;
+        }
+      }
+
+      const maxX = canvas.width - hero.width;
+      hero.x = Math.max(0, Math.min(maxX, hero.x));
+    }
+
+
+    let goalScored = false;
+    function updateBall() {
+      // Physics dasar
+      ball.vy += ball.gravity;
+      ball.y += ball.vy;
+      ball.x += ball.vx;
+
+      // Bounce dari tanah
+      const groundLevel = hero.groundY + hero.height - 10;
+      if (ball.y + ball.radius > groundLevel) {
+        ball.y = groundLevel - ball.radius;
+        ball.vy *= ball.bounce;
+        if (Math.abs(ball.vy) < 0.5) ball.vy = 0;
+      }
+
+      // Deteksi tabrakan dengan hero
+      const ballCenterX = ball.x + ball.radius;
+      const ballCenterY = ball.y + ball.radius;
+
+      const heroLeft = hero.x;
+      const heroRight = hero.x + hero.width;
+      const heroTop = hero.y;
+      const heroBottom = hero.y + hero.height;
+
+      const overlapX = ballCenterX > heroLeft && ballCenterX < heroRight;
+      const overlapY = ballCenterY > heroTop && ballCenterY < heroBottom;
+
+      const isOnGround = ball.y + ball.radius >= groundLevel - 1;
+
+      if (overlapX && overlapY) {
+        const isOnGround = ball.y + ball.radius >= groundLevel - 1;
+
+        const isKickFrame =
+          hero.isKicking &&
+          hero.frameIndex >= 2 &&
+          hero.frameIndex <= 3 &&
+          !hero.hasKickedBall &&
+          ((hero.direction === 'right' && ballCenterX > hero.x + hero.width * 0.3 && ballCenterX < hero.x + hero.width * 0.9) ||
+            (hero.direction === 'left' && ballCenterX > hero.x + hero.width * 0.3 && ballCenterX < hero.x + hero.width * 0.9)
+          );
+
+        if (isKickFrame) {
+          hero.hasKickedBall = true;
+
+          const forceX = hero.direction === 'right' ? 18 : -18;
+          const forceY = -1;
+
+          ball.vx = forceX;
+          ball.vy = forceY;
+          ball.rotation += hero.direction === 'right' ? 2.5 : -2.5;
+          ball.noFrictionFrames = 20;
+
+          console.log("Tendangan berhasil!");
+        } else {
+          // Tabrakan biasa (termasuk saat bola menyentuh tanah)
+          const fromTop = Math.abs(ball.y + ball.radius * 2 - heroTop);
+          const fromBottom = Math.abs(ball.y - heroBottom);
+          const fromLeft = Math.abs(ball.x + ball.radius * 2 - heroLeft);
+          const fromRight = Math.abs(ball.x - heroRight);
+
+          const minDist = Math.min(fromTop, fromBottom, fromLeft, fromRight);
+          const lowForce = 0.4; // gaya dorongan pelan
+
+          if (minDist === fromTop && !isOnGround) {
+            ball.y = heroTop - ball.radius * 2;
+            ball.vy = -Math.abs(ball.vy) * 0.8;
+            ball.vx += hero.direction === 'right' ? 1.5 : -1.5;
+            ball.rotation += hero.direction === 'right' ? 0.2 : -0.2;
+          } else if (minDist === fromBottom) {
+            const isBottomHit = ballCenterY > heroBottom - 4 && ball.vy > 0;
+            if (isBottomHit) {
+              ball.y = heroBottom;
+              ball.vy = 0;
+            }
+          } else if (minDist === fromLeft) {
+            ball.x = heroLeft - ball.radius * 2;
+            ball.vx = -lowForce;
+            ball.rotation -= 0.1;
+          } else if (minDist === fromRight) {
+            ball.x = heroRight;
+            ball.vx = lowForce;
+            ball.rotation += 0.1;
+          }
+        }
+      }
+
+
+
+
+
+
+      // Bounce dari dinding kiri dan kanan
+      if (ball.x < 0) {
+        ball.x = 0;
+        ball.vx *= ball.bounce;
+      } else if (ball.x + ball.radius * 2 > canvas.width) {
+        ball.x = canvas.width - ball.radius * 2;
+        ball.vx *= ball.bounce;
+      }
+
+      // Friction (lebih halus)
+      if (ball.noFrictionFrames > 0) {
+        ball.noFrictionFrames--;
+      } else {
+        ball.vx *= 0.985;
+      }
+      //ball.vx *= 0.985;
+      if (Math.abs(ball.vx) < 0.05) ball.vx = 0;
+      if (Math.abs(ball.vy) < 0.05) ball.vy = 0;
+
+      // Putaran bola
+      ball.rotation += ball.vx / ball.radius;
+
+      //pengecekan bola
+
+      // Deteksi bola masuk ke gawang kanan (layer depan)
+      const goalFrontRightX = canvas.width - goalpost2Width - 38;
+      const goalFrontRightY = hero.groundY + 2 + hero.height - goalpost2Height;
+
+      const goalFrontLeftX = 38;
+      const goalFrontLeftY = hero.groundY + 2 + hero.height - goalpost2Height;
+
+      const isInRightGoal = (
+        ball.x + ball.radius * 2 > goalFrontRightX &&
+        ball.y + ball.radius > goalFrontRightY &&
+        !goalScored
+      );
+
+      const isInLeftGoal = (
+        ball.x < goalFrontLeftX &&
+        ball.y + ball.radius > goalFrontLeftY &&
+        !goalScored
+      );
+
+      if (isInRightGoal) {
+        scoreLeft++; // ← karena goal di kanan, poin untuk kiri
+        console.log("Goal kanan! Skor kiri:", scoreLeft);
+        goalScored = true;
+        setTimeout(resetBall, 2000);
+      }
+
+
+      if (isInLeftGoal) {
+        scoreLeft++;
+        console.log("Goal kiri! Skor kanan:", scoreLeft);
+        goalScored = true;
+        setTimeout(resetBall, 2000);
+      }
+
+      // Deteksi Goal (lewati tiang depan)
+      const goalLineLeft = 38 + goalpost2Width; // Tiang depan kiri
+      const goalLineRight = canvas.width - 38 - goalpost2Width - ball.radius * 2; // Tiang depan kanan
+
+      if (!goalScored && ball.y + ball.radius > groundLevel - 20) {
+        if (ball.x < goalLineLeft) {
+          scoreRight++; // masuk ke kiri = poin untuk kanan
+          goalScored = true;
+          setTimeout(resetBall, 2000);
+        } else if (ball.x > goalLineRight) {
+          scoreLeft++; // masuk ke kanan = poin untuk kiri
+          goalScored = true;
+          setTimeout(resetBall, 2000);
+        }
+
+      }
+
+
+    }
+
+
+    function resetBall() {
+      // Reset bola
+      ball.x = canvas.width / 2 - ball.radius;
+      ball.y = 0;
+      ball.vx = 0;
+      ball.vy = 0;
+      ball.rotation = 0;
+      goalScored = false;
+
+      // Reset posisi hero
+      hero.x = 100;
+      hero.y = hero.groundY;
+      hero.velocityY = 0;
+      hero.isJumping = false;
+      hero.isAttacking = false;
+      hero.attackFrames = [];
+      hero.frameIndex = 0;
+      hero.direction = 'right';
+    }
+
+    function drawGoalpost() {
+      const x = canvas.width - goalpostWidth;
+      const y = hero.groundY + hero.height - goalpostHeight;
+      ctx.drawImage(goalpost, x, y, goalpostWidth, goalpostHeight);
+    }
+
+    function drawGoalpost2() {
+      const x = canvas.width - goalpost2Width;
+      const y = hero.groundY + 2 + hero.height - goalpost2Height;
+      ctx.drawImage(goalpost2, x - 38, y, goalpost2Width, goalpost2Height);
+    }
+
+    function drawGoalpostLeft() {
+      const x = 0;
+      const y = hero.groundY + hero.height - goalpostHeight;
+      ctx.save();
+      ctx.scale(-1, 1);
+      ctx.drawImage(goalpost, -x - goalpostWidth, y, goalpostWidth, goalpostHeight);
+      ctx.restore();
+    }
+
+    function drawGoalpost2Left() {
+      const x = 0;
+      const y = hero.groundY + 2 + hero.height - goalpost2Height;
+      ctx.save();
+      ctx.scale(-1, 1);
+      ctx.drawImage(goalpost2, -x - goalpost2Width - 38, y, goalpost2Width, goalpost2Height);
+      ctx.restore();
+    }
+
+    function drawHPBar(x, y, hp, label) {
+      const maxHP = 500;
+      const barWidth = 50;
+      const barHeight = 5;
+
+      let barColor = "green";
+      if (hp <= 100) barColor = "red";
+      else if (hp <= 300) barColor = "yellow";
+
+      ctx.fillStyle = "#000";
+      ctx.fillRect(x - 2, y - 2, barWidth + 4, barHeight + 4);
+
+      ctx.fillStyle = barColor;
+      ctx.fillRect(x, y, (hp / maxHP) * barWidth, barHeight);
+
+      ctx.strokeStyle = "white";
+      ctx.strokeRect(x, y, barWidth, barHeight);
+
+      ctx.fillStyle = "white";
+      ctx.font = "8px Arial";
+      ctx.fillText(label, x + barWidth / 2, y - 4);
+    }
+
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(background, 0, 0, canvas.width, canvas.height);
+
+      drawGoalpost2Left();
+      drawGoalpost2();
+      updateHero();
+      drawHero();
+      updateBall();
+      ctx.save();
+      ctx.translate(ball.x + ball.radius, ball.y + ball.radius);
+      ctx.rotate(ball.rotation);
+      ctx.drawImage(ballImg, -ball.radius, -ball.radius, ball.radius * 2, ball.radius * 2);
+      ctx.restore();
+
+      drawGoalpostLeft();
+      drawGoalpost();
+      drawScoreboard();
+    }
+
+    function drawScoreboard() {
+      if (!papanSkorImg.complete) return;
+
+      const targetHeight = 30; // ← ubah ini sesuai keinginan
+      const aspectRatio = papanSkorImg.naturalWidth / papanSkorImg.naturalHeight;
+      const targetWidth = targetHeight * aspectRatio;
+
+      const papanX = canvas.width / 2 - targetWidth / 2;
+      const papanY = 10;
+
+      // Gambar papan skor
+      ctx.drawImage(papanSkorImg, papanX, papanY, targetWidth, targetHeight);
+
+      // Teks skor
+      ctx.font = "bold 13px Arial";
+      ctx.fillStyle = "white";
+      ctx.textAlign = "center";
+
+      const skorY = papanY + targetHeight / 2 + 5;
+      ctx.fillText(scoreLeft, canvas.width / 2 - 108, skorY);
+      ctx.fillText(scoreRight, canvas.width / 2 + 108, skorY);
+
+      // Label "kamu" dan "musuh"
+      ctx.font = "8px Arial";
+      ctx.fillStyle = "#FFFFFF"; // warna kuning emas
+      ctx.fillText("KAMU", canvas.width / 2 - 55, skorY - 2);
+      ctx.fillText("MUSUH", canvas.width / 2 + 55, skorY - 2);
+    }
+
+
+
+
+    function gameLoop() {
+      if (!isUsingSkill) draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    function resizeCanvas() {
+      const aspectRatio = canvas.width / canvas.height;
+      let newWidth = window.innerWidth;
+      let newHeight = window.innerHeight;
+
+      if (newWidth / newHeight > aspectRatio) {
+        newWidth = newHeight * aspectRatio;
+      } else {
+        newHeight = newWidth / aspectRatio;
+      }
+
+      canvas.style.width = newWidth + 'px';
+      canvas.style.height = newHeight + 'px';
+    }
+
+    background.onload = () => {
+      resizeCanvas();
+      gameLoop();
+    };
+    window.addEventListener('resize', resizeCanvas);
+
+    const bgm = document.getElementById('bgm');
+    bgm.volume = 0.3;
+    function startMusic() {
+      bgm.play().catch(e => console.log("Audio blocked:", e));
+      window.removeEventListener('click', startMusic);
+      window.removeEventListener('keydown', startMusic);
+      window.removeEventListener('touchstart', startMusic);
+    }
+    window.addEventListener('click', startMusic);
+    window.addEventListener('keydown', startMusic);
+    window.addEventListener('touchstart', startMusic);
+  </script>
+  <!-- <script src="../hero/naruto/jurus/jurus_1.js"></script> -->
+  <script>
+    const script = document.createElement('script');
+    script.src = `../hero/${pick}/jurus/jurus_1.js`;
+    document.body.appendChild(script);
+  </script>
+
+  <script>
+    const params2 = new URLSearchParams(window.location.search);
+    let pick2 = params2.get('enemy'); // Gunakan let, agar bisa diubah
+
+    if (!pick2) {
+      pick2 = 'sasuke'; // set default jika tidak ada parameter
+    }
+
+    const enemy = {
+      x: 700, y: 300, width: 75, height: 75,
+      speed: 2.2, direction: 'left',
+      isMoving: false, isJumping: false, isAttacking: false,
+      velocityY: 0, gravity: 0.5, groundY: 300,
+      frameIndex: 0, frameDelay: 6, frameCounter: 0,
+      attackCombo: 0, attackFrames: [],
+      isKicking: false,
+      hasKickedBall: false,
+      lockMove: false,
+      hp: 500,
+      isStunned: false,
+      stunTimer: 0,
+    };
+
+    const enemyIdleFrames = [], enemyWalkFrames = [], enemyJumpFrames = [], enemyAttackFramesCombo1 = [], enemyAttackFramesCombo2 = [], enemyKickFrames = [];
+    for (let i = 1; i <= 4; i++) enemyIdleFrames.push(loadImg(`../hero/${pick2}/aba_aba/aba_${i}.png`));
+    for (let i = 1; i <= 6; i++) enemyWalkFrames.push(loadImg(`../hero/${pick2}/jalan/jalan_${i}.png`));
+    for (let i = 1; i <= 3; i++) enemyJumpFrames.push(loadImg(`../hero/${pick2}/lompat/lompat_${i}.png`));
+    for (let i = 1; i <= 3; i++) enemyAttackFramesCombo1.push(loadImg(`../hero/${pick2}/pukul/pukul_${i}.png`));
+    for (let i = 4; i <= 6; i++) enemyAttackFramesCombo2.push(loadImg(`../hero/${pick2}/pukul/pukul_${i}.png`));
+    for (let i = 1; i <= 4; i++) enemyKickFrames.push(loadImg(`../hero/${pick2}/tendang/tendang_${i}.png`));
+    const enemyDeadImg = loadImg(`../hero/${pick2}/mati/mati.png`);
+
+    function updateEnemy() {
+      if (enemy.isStunned) {
+        enemy.stunTimer--;
+        if (enemy.stunTimer <= 0) {
+          enemy.isStunned = false;
+          enemy.hp = 500;
+        }
+        return;
+      }
+
+
+      // Tambahkan sebelum enemy bergerak
+      const isHeroPunching =
+        hero.isAttacking &&
+        hero.attackFrames === attackFramesCombo1 &&
+        hero.frameIndex >= 1 &&
+        hero.frameIndex <= 2 &&
+        !enemy.justHit;
+
+      const overlapEnemy =
+        enemy.x < hero.x + hero.width &&
+        enemy.x + enemy.width > hero.x &&
+        enemy.y < hero.y + hero.height &&
+        enemy.y + enemy.height > hero.y;
+
+      if (isHeroPunching && overlapEnemy && !enemy.isStunned) {
+        enemy.hp -= 50;
+        enemy.justHit = true;
+
+        if (enemy.hp <= 0 && !enemy.isStunned) {
+          enemy.isStunned = true;
+          enemy.stunTimer = 300; // ~5 detik pada 60 FPS
+          console.log("Enemy stun!");
+        }
+
+        setTimeout(() => enemy.justHit = false, 500);
+      }
+
+
+      // Tunggu bola menyentuh tanah sebelum mulai bergerak
+      if (ball.y + ball.radius < enemy.groundY) {
+        enemy.isMoving = false;
+        return;
+      }
+
+      const dx = ball.x - enemy.x;
+      enemy.direction = dx < 0 ? 'left' : 'right';
+
+      const distanceX = Math.abs(dx);
+      const ballCenterX = ball.x + ball.radius;
+      const ballCenterY = ball.y + ball.radius;
+      const enemyCenterX = enemy.x + enemy.width / 2;
+      const enemyBottomY = enemy.y + enemy.height;
+
+      const inKickRangeX = Math.abs(ballCenterX - enemyCenterX) < 28;
+      const inKickRangeY = Math.abs(ballCenterY - enemyBottomY) < 20;
+
+      const allowMove = !enemy.isAttacking || (enemy.isKicking && enemy.frameIndex < 2);
+      enemy.isMoving = distanceX > 1;
+
+      // Hindari nendang ke kanan
+      const isBallDiKanan = ballCenterX > enemyCenterX;
+      const harusHindariNendangKeKanan = isBallDiKanan && !enemy.isJumping && !enemy.isAttacking;
+
+      if (harusHindariNendangKeKanan) {
+        enemy.velocityY = -7;
+        enemy.isJumping = true;
+        enemy.frameIndex = 0;
+      }
+
+      // Bergerak ke arah bola
+      if (!enemy.lockMove && allowMove) {
+        const moveSpeed = enemy.isJumping ? enemy.speed * 0.8 : enemy.speed;
+        if (distanceX > 1) {
+          enemy.x += dx < 0 ? -moveSpeed : moveSpeed;
+        }
+      }
+
+      // Lompat kalau bola di depan dan lebih rendah
+      const isBallFront = (
+        (enemy.direction === 'right' && ballCenterX > enemy.x + enemy.width && distanceX < 60) ||
+        (enemy.direction === 'left' && ballCenterX < enemy.x && distanceX < 60)
+      );
+      const isBallLow = (ballCenterY > enemyBottomY - 10 && ballCenterY < enemyBottomY + 25);
+
+      if (isBallFront && isBallLow && !enemy.isJumping && !enemy.isAttacking) {
+        enemy.velocityY = -7;
+        enemy.isJumping = true;
+        enemy.frameIndex = 0;
+      }
+
+      // Kick kalau pas posisi dan menghadap kiri
+      if (inKickRangeX && inKickRangeY && !enemy.isAttacking && enemy.direction === 'left') {
+        enemy.attackFrames = enemyKickFrames;
+        enemy.isAttacking = true;
+        enemy.isKicking = true;
+        enemy.hasKickedBall = false;
+        enemy.frameIndex = 0;
+        enemy.frameCounter = 0;
+      }
+
+      // Proses lompat
+      if (enemy.isJumping) {
+        enemy.y += enemy.velocityY;
+        enemy.velocityY += enemy.gravity;
+        if (enemy.y >= enemy.groundY) {
+          enemy.y = enemy.groundY;
+          enemy.isJumping = false;
+          enemy.velocityY = 0;
+        }
+      }
+    }
+
+
+
+
+    function drawEnemy() {
+      let frame;
+
+      if (enemy.isStunned) {
+        frame = enemyDeadImg;
+      } else if (enemy.isAttacking && enemy.attackFrames.length > 0) {
+        frame = enemy.attackFrames[enemy.frameIndex % enemy.attackFrames.length];
+      } else if (enemy.isJumping) {
+        frame = enemyJumpFrames[enemy.frameIndex % enemyJumpFrames.length];
+      } else if (enemy.isMoving) {
+        frame = enemyWalkFrames[enemy.frameIndex % enemyWalkFrames.length];
+      } else {
+        frame = enemyIdleFrames[enemy.frameIndex % enemyIdleFrames.length];
+      }
+
+      if (enemy.direction === 'left') {
+        ctx.save();
+        ctx.scale(-1, 1);
+        ctx.drawImage(frame, -enemy.x - enemy.width, enemy.y, enemy.width, enemy.height);
+        ctx.restore();
+      } else {
+        ctx.drawImage(frame, enemy.x, enemy.y, enemy.width, enemy.height);
+      }
+
+      drawHPBar(enemy.x + 15, enemy.y, enemy.hp, "MUSUH");
+
+      // Frame counter update hanya jika tidak stun
+      enemy.frameCounter++;
+      if (enemy.frameCounter >= enemy.frameDelay && !enemy.isStunned) {
+        enemy.frameCounter = 0;
+        let frames = enemy.isAttacking && enemy.attackFrames.length > 0 ? enemy.attackFrames.length :
+          enemy.isJumping ? enemyJumpFrames.length :
+            enemy.isMoving ? enemyWalkFrames.length : enemyIdleFrames.length;
+
+        enemy.frameIndex++;
+        if (enemy.isAttacking && enemy.frameIndex >= frames) {
+          enemy.isAttacking = false;
+          enemy.isKicking = false;
+          enemy.hasKickedBall = false;
+          enemy.frameIndex = 0;
+        } else {
+          enemy.frameIndex %= frames;
+        }
+      }
+    }
+
+
+
+
+    function updateBotBallCollision() {
+      const ballCenterX = ball.x + ball.radius;
+      const ballCenterY = ball.y + ball.radius;
+      const enemyLeft = enemy.x;
+      const enemyRight = enemy.x + enemy.width;
+      const enemyTop = enemy.y;
+      const enemyBottom = enemy.y + enemy.height;
+
+      const overlapX = ballCenterX > enemyLeft && ballCenterX < enemyRight;
+      const overlapY = ballCenterY > enemyTop && ballCenterY < enemyBottom;
+
+      if (enemy.isKicking && overlapX && overlapY && !enemy.hasKickedBall) {
+        const forceX = enemy.direction === 'right' ? 18 : -18;
+        const forceY = -1;
+        ball.vx = forceX;
+        ball.vy = forceY;
+        ball.rotation += enemy.direction === 'right' ? 2.5 : -2.5;
+        ball.noFrictionFrames = 20;
+        enemy.hasKickedBall = true;
+
+        // Tambah jika enemy pukul (bukan tendang)
+        if (
+          enemy.isAttacking &&
+          enemy.attackFrames === enemyAttackFramesCombo1 &&
+          enemy.frameIndex >= 1 &&
+          enemy.frameIndex <= 2 &&
+          !hero.justHit &&
+          overlapX && overlapY &&
+          !hero.isStunned
+        ) {
+          hero.hp -= 50;
+          hero.justHit = true;
+
+          if (hero.hp <= 0 && !hero.isStunned) {
+            hero.isStunned = true;
+            hero.stunTimer = 300; // ~5 detik
+            console.log("Hero stun!");
+          }
+
+          setTimeout(() => hero.justHit = false, 500);
+        }
+
+      }
+    }
+
+    const originalDraw = draw;
+    draw = function () {
+      originalDraw();
+      updateEnemy();
+      drawEnemy();
+      updateBotBallCollision();
+
+      // Bola
+      ctx.save();
+      ctx.translate(ball.x + ball.radius, ball.y + ball.radius);
+      ctx.rotate(ball.rotation);
+      ctx.drawImage(ballImg, -ball.radius, -ball.radius, ball.radius * 2, ball.radius * 2);
+      ctx.restore();
+
+      drawGoalpostLeft();
+      drawGoalpost();
+    }
+
+    const originalResetBall = resetBall;
+    resetBall = function () {
+      originalResetBall();
+      enemy.x = 700;
+      enemy.y = enemy.groundY;
+      enemy.velocityY = 0;
+      enemy.isJumping = false;
+      enemy.isAttacking = false;
+      enemy.attackFrames = [];
+      enemy.frameIndex = 0;
+      enemy.direction = 'left';
+    }
+  </script>
+
+</body>
+
+</html>
