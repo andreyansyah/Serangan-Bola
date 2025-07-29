@@ -178,7 +178,7 @@ function executeSkill1(hero, ctx, callback) {
     drawGoalpost();
     drawScoreboard();
     drawHPBar(hero.x, hero.y - 12, hero.hp, "Kamu");
-    drawButton();
+    //drawButton();
     drawShortcutButtons();
 
     requestAnimationFrame(animateSkill);
