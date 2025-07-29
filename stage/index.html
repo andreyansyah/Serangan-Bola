@@ -47,6 +47,8 @@
     }
 
     const canvas = document.getElementById('gameCanvas');
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+
     const ctx = canvas.getContext('2d');
 
     // Posisi tombol
@@ -145,6 +147,7 @@
 
     // Touch / Mobile
     canvas.addEventListener("touchstart", (e) => {
+      e.preventDefault();
       for (let i = 0; i < e.touches.length; i++) {
         const touch = e.touches[i];
         const { x, y } = getCanvasPos(touch);
