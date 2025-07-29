@@ -38,6 +38,11 @@
   </div>
 
   <audio id="bgm" src="../sounds/konoha.mp3" loop></audio>
+
+
+
+
+
   <script>
     const params = new URLSearchParams(window.location.search);
     let pick = params.get('hero'); // Gunakan let, agar bisa diubah
@@ -100,122 +105,6 @@
     window.addEventListener("resize", () => {
       btnX = canvas.width - btnSize - 10;
     });
-
-    // =========================
-    // Shortcut Buttons
-    // =========================
-    const btnShortcuts = [
-      { key: 'a', label: 'Left', x: 70, y: 80, w: 35, h: 35 },
-      { key: 'd', label: 'Right', x: 120, y: 80, w: 35, h: 35 },
-      { key: ' ', label: 'Jump', x: 170, y: 80, w: 35, h: 35 },
-      { key: 'k', label: 'Kick', x: canvas.width - 210, y: 80, w: 35, h: 35 },
-      { key: 'i', label: 'Punch', x: canvas.width - 160, y: 80, w: 35, h: 35 },
-      { key: 'j', label: 'Skill', x: canvas.width - 110, y: 80, w: 35, h: 35 },
-    ];
-
-
-    // Status tombol yang ditekan
-    const pressedTouchKeys = {};
-
-    // Fungsi bantu untuk dapatkan posisi klik relatif terhadap canvas
-    function getCanvasPos(e) {
-      const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-      const x = (e.clientX - rect.left) * scaleX;
-      const y = (e.clientY - rect.top) * scaleY;
-      return { x, y };
-    }
-
-    // MOUSE / DESKTOP
-    canvas.addEventListener("mousedown", (e) => {
-      const { x, y } = getCanvasPos(e);
-      for (const btn of btnShortcuts) {
-        if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
-          if (btn.key === 'a' || btn.key === 'd' || btn.key === ' ') {
-            pressedTouchKeys[btn.key] = true;
-            document.dispatchEvent(new KeyboardEvent("keydown", { key: btn.key }));
-          } else {
-            document.dispatchEvent(new KeyboardEvent("keydown", { key: btn.key }));
-            document.dispatchEvent(new KeyboardEvent("keyup", { key: btn.key }));
-          }
-        }
-      }
-    });
-
-    canvas.addEventListener("mouseup", () => {
-      for (const key in pressedTouchKeys) {
-        if (pressedTouchKeys[key]) {
-          document.dispatchEvent(new KeyboardEvent("keyup", { key }));
-          pressedTouchKeys[key] = false;
-        }
-      }
-    });
-
-    // TOUCH / MOBILE
-    canvas.addEventListener("touchstart", (e) => {
-      const touch = e.touches[0];
-      const { x, y } = getCanvasPos(touch);
-      for (const btn of btnShortcuts) {
-        if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
-          if (btn.key === 'a' || btn.key === 'd' || btn.key === ' ') {
-            pressedTouchKeys[btn.key] = true;
-            document.dispatchEvent(new KeyboardEvent("keydown", { key: btn.key }));
-          } else {
-            document.dispatchEvent(new KeyboardEvent("keydown", { key: btn.key }));
-            document.dispatchEvent(new KeyboardEvent("keyup", { key: btn.key }));
-          }
-        }
-      }
-    }, { passive: true });
-
-    canvas.addEventListener("touchend", () => {
-      for (const key in pressedTouchKeys) {
-        if (pressedTouchKeys[key]) {
-          document.dispatchEvent(new KeyboardEvent("keyup", { key }));
-          pressedTouchKeys[key] = false;
-        }
-      }
-    });
-    
-
-    // Fungsi bantu untuk menggambar kotak dengan sudut membulat
-    function drawRoundedRect(x, y, width, height, radius) {
-      ctx.beginPath();
-      ctx.moveTo(x + radius, y);
-      ctx.lineTo(x + width - radius, y);
-      ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-      ctx.lineTo(x + width, y + height - radius);
-      ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-      ctx.lineTo(x + radius, y + height);
-      ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-      ctx.lineTo(x, y + radius);
-      ctx.quadraticCurveTo(x, y, x + radius, y);
-      ctx.closePath();
-    }
-
-    // Gambar tombol shortcut
-    function drawShortcutButtons() {
-      for (const btn of btnShortcuts) {
-        ctx.fillStyle = pressedTouchKeys[btn.key]
-          ? "rgba(255,165,0,0.8)"  // oranye terang saat ditekan
-          : "rgba(255,165,0,0.4)"; // oranye transparan biasa
-
-        drawRoundedRect(btn.x, btn.y, btn.w, btn.h, 6);
-        ctx.fill();
-        ctx.strokeStyle = "red";
-        ctx.stroke();
-
-        ctx.fillStyle = "red";
-        ctx.font = "bold 9px Arial";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(btn.label, btn.x + btn.w / 2, btn.y + btn.h / 2);
-      }
-    }
-
-
-
 
 
     const background = new Image();
@@ -716,9 +605,7 @@
       drawGoalpostLeft();
       drawGoalpost();
       drawScoreboard();
-
       drawButton();
-      drawShortcutButtons();
     }
 
     function drawScoreboard() {
@@ -739,15 +626,15 @@
       ctx.fillStyle = "white";
       ctx.textAlign = "center";
 
-      const skorY = papanY + targetHeight / 2 + 0;
+      const skorY = papanY + targetHeight / 2 + 5;
       ctx.fillText(scoreLeft, canvas.width / 2 - 108, skorY);
       ctx.fillText(scoreRight, canvas.width / 2 + 108, skorY);
 
       // Label "kamu" dan "musuh"
       ctx.font = "8px Arial";
       ctx.fillStyle = "#FFFFFF"; // warna kuning emas
-      ctx.fillText("KAMU", canvas.width / 2 - 55, skorY - 1);
-      ctx.fillText("MUSUH", canvas.width / 2 + 55, skorY - 1);
+      ctx.fillText("KAMU", canvas.width / 2 - 55, skorY - 2);
+      ctx.fillText("MUSUH", canvas.width / 2 + 55, skorY - 2);
     }
 
 

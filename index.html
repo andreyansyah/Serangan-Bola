@@ -1,1 +1,133 @@
+<<<<<<< HEAD
 <html></html>
+=======
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Stage: Konoha</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    #canvasWrapper {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #000;
+    }
+
+    canvas {
+      display: block;
+      background: #000;
+      image-rendering: pixelated;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="canvasWrapper">
+    <canvas id="gameCanvas" width="896" height="414"></canvas>
+  </div>
+
+  <audio id="bgm" src="../sounds/konoha.mp3" loop></audio>
+  <button id="fullscreenBtn" style="
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.6);
+  border: none;
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+">
+  <svg id="fullscreenIcon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="white" viewBox="0 0 24 24">
+    <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+  </svg>
+</button>
+
+
+  <script>
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+
+    fullscreenBtn.addEventListener('click', () => {
+      canvas.requestFullscreen?.();
+    });
+  </script>
+
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    let pick = params.get('hero'); // Gunakan let, agar bisa diubah
+
+    if (!pick) {
+      pick = 'naruto'; // set default jika tidak ada parameter
+    }
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const background = new Image();
+    background.src = 'stage/konoha/desa_konoha.png';
+
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(background, 0, 0, canvas.width, canvas.height);
+    }
+
+
+    function gameLoop() {
+      if (!isUsingSkill) draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    function resizeCanvas() {
+      const aspectRatio = canvas.width / canvas.height;
+      let newWidth = window.innerWidth;
+      let newHeight = window.innerHeight;
+
+      if (newWidth / newHeight > aspectRatio) {
+        newWidth = newHeight * aspectRatio;
+      } else {
+        newHeight = newWidth / aspectRatio;
+      }
+
+      canvas.style.width = newWidth + 'px';
+      canvas.style.height = newHeight + 'px';
+    }
+
+    background.onload = () => {
+      resizeCanvas();
+      gameLoop();
+    };
+    window.addEventListener('resize', resizeCanvas);
+
+    const bgm = document.getElementById('bgm');
+    bgm.volume = 0.3;
+    function startMusic() {
+      bgm.play().catch(e => console.log("Audio blocked:", e));
+      window.removeEventListener('click', startMusic);
+      window.removeEventListener('keydown', startMusic);
+      window.removeEventListener('touchstart', startMusic);
+    }
+    window.addEventListener('click', startMusic);
+    window.addEventListener('keydown', startMusic);
+    window.addEventListener('touchstart', startMusic);
+  </script>
+
+</body>
+
+</html>
+>>>>>>> 7fabfc5 (Update button)
